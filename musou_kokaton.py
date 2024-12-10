@@ -134,6 +134,10 @@ class Bomb(pg.sprite.Sprite):
         self.rect.centerx = emy.rect.centerx
         self.rect.centery = emy.rect.centery+emy.rect.height//2
         self.speed = 6
+        self.state = "active"
+
+
+        
 
     def update(self):
         """
@@ -149,7 +153,7 @@ class Beam(pg.sprite.Sprite):
     """
     ビームに関するクラス
     """
-    def __init__(self, bird: Bird, angle=0, angle=0):
+    def __init__(self, bird: Bird, angle=0):
         """
         ビーム画像Surfaceを生成する
         引数 bird：ビームを放つこうかとん
@@ -162,8 +166,8 @@ class Beam(pg.sprite.Sprite):
         initial_angle = math.degrees(math.atan2(-self.vy,self.vx)) + angle
         angle = math.degrees(math.atan2(-self.vy, self.vx))
         self.image = pg.transform.rotozoom(pg.image.load(f"fig/beam.png"), angle, 1.0)
-        self.vx = math.cos(math.radians(initial_initial_angle))
-        self.vy = -math.sin(math.radians(initial_initial_angle))
+        self.vx = math.cos(math.radians(initial_angle))
+        self.vy = -math.sin(math.radians(initial_angle))
         self.rect = self.image.get_rect()
         self.rect.centery = bird.rect.centery+bird.rect.height*self.vy
         self.rect.centerx = bird.rect.centerx+bird.rect.width*self.vx
@@ -307,6 +311,31 @@ class multiBeam:
             beams.append(Beam(bird, angle))
         return beams
     
+class EMP(pg.sprite.Sprite):
+    def __init__(self, emys : pg.sprite.Group, bombs : pg.sprite.Group, screen : pg.Surface):
+        """
+        電磁パルスのクラス
+        """
+        super().__init__()
+        self.image = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        self.rect = self.image.get_rect()
+        pg.draw.rect(self.image, (255, 255, 0, 128), self.rect)
+        self.time = 10
+        for emy in emys:
+            emy.interval = float("inf")
+            emy.image = pg.transform.laplacian(emy.image)
+        for bomb in bombs:
+            bomb.speed /= 2
+            bomb.state = "inactive"
+
+    def update(self):
+        """
+        時間を減算し、タイムアウト後に削除する
+        """
+        self.time -= 0.5
+        if self.time <= 0:
+            self.kill()
+
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -317,6 +346,7 @@ def main():
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    emps = pg.sprite.Group()  # EMPのグループ
 
     tmr = 0
     clock = pg.time.Clock()
@@ -325,8 +355,15 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    beams.add(Beam(bird))
+                if event.key == pg.K_e:  # 'E'キーでEMP発動
+                    if len(emps) == 0:  # EMPが未発動の場合のみ発動
+                        if score.value >= 20:  # スコアが20以上の場合のみ発動可能
+                            emps.add(EMP(emys, bombs,screen))
+                            score.value -= 20  # スコアを20減少
+
                 if key_lst[pg.K_TAB]:
                     beams.add(*multiBeam(bird,5).beams)
                 else:
@@ -341,11 +378,11 @@ def main():
                 score.value -= 100 #スコアを100減らす
         screen.blit(bg_img, [0, 0])
 
-        if tmr%200 == 0:  # 200フレームに1回，敵機を出現sさせる
+        if tmr % 200 == 0:  # 200フレームに1回，敵機を出現sさせる
             emys.add(Enemy())
 
         for emy in emys:
-            if emy.state == "stop" and tmr%emy.interval == 0:
+            if emy.state == "stop" and tmr % emy.interval == 0:
                 # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
                 bombs.add(Bomb(emy, bird))
 
@@ -371,6 +408,11 @@ def main():
                 return
             
         for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
+            if bomb.state == "inactive":
+                continue
+
+
+
             bird.change_img(8, screen)  # こうかとん悲しみエフェクト
             score.update(screen)
             pg.display.update()
@@ -388,6 +430,8 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        emps.update()
+        emps.draw(screen)  # EMPを描画
         score.update(screen)
         pg.display.update()
         tmr += 1
