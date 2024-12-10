@@ -6,6 +6,7 @@ import time
 import pygame as pg
 
 
+
 WIDTH = 1100  # ゲームウィンドウの幅
 HEIGHT = 650  # ゲームウィンドウの高さ
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -237,7 +238,28 @@ class Enemy(pg.sprite.Sprite):
             self.vy = 0
             self.state = "stop"
         self.rect.move_ip(self.vx, self.vy)
-
+class Gravity(pg.sprite.Sprite):
+    """
+    重力場に関するクラス
+    """
+    def __init__(self,life:int):
+        """
+        重力場Surfaceを生成する
+        引数 life：重力場の持続時間
+        """
+        super().__init__()
+        self.image = pg.Surface((WIDTH, HEIGHT))  # 画面全体を覆う
+        pg.draw.rect(self.image, (0, 0, 0), (0, 0, WIDTH, HEIGHT))  # (0, 0, 0)は黒色
+        self.image.set_alpha(128)  # 透明度を設定
+        self.rect = self.image.get_rect()
+        self.life = life  # 重力場の持続フレーム数
+    def update(self):
+        """
+        重力場の持続時間を管理し，0未満になったら削除
+        """
+        self.life -= 1
+        if self.life < 0:
+            self.kill()  # 重力場を削除
 
 class Score:
     """
@@ -347,6 +369,7 @@ def main():
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
     emps = pg.sprite.Group()  # EMPのグループ
+    gravity_fields = pg.sprite.Group()  # 重力場のグループを追加
 
     tmr = 0
     clock = pg.time.Clock()
@@ -376,6 +399,12 @@ def main():
                 bird.state = "hyper" #無敵状態に
                 bird.hyper_life = 500 #ライフを500フレームに
                 score.value -= 100 #スコアを100減らす
+            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
+                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN and event.key == pg.K_RSHIFT and score.value >= 10:
+                # スコアが200以上の場合、RETURNキーで重力場を生成
+                gravity_fields.add(Gravity(40))  # 持続時間40フレームの重力場を生成
+                score.value -= 10  # スコアを10点消費
         screen.blit(bg_img, [0, 0])
 
         if tmr % 200 == 0:  # 200フレームに1回，敵機を出現sさせる
@@ -385,15 +414,23 @@ def main():
             if emy.state == "stop" and tmr % emy.interval == 0:
                 # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
                 bombs.add(Bomb(emy, bird))
+            
 
         for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():  # ビームと衝突した敵機リスト
             exps.add(Explosion(emy, 100))  # 爆発エフェクト
             score.value += 50  # 10点アップ
+            score.value += 100  # 10点アップ
             bird.change_img(6, screen)  # こうかとん喜びエフェクト
 
         for bomb in pg.sprite.groupcollide(bombs, beams, True, True).keys():  # ビームと衝突した爆弾リスト
             exps.add(Explosion(bomb, 50))  # 爆発エフェクト
             score.value += 1  # 1点アップ
+          # 重力場と爆弾・敵機との衝突判定
+        for gravity in gravity_fields:
+            for bomb in pg.sprite.spritecollide(gravity, bombs, True):
+                exps.add(Explosion(bomb, 50))
+            for emy in pg.sprite.spritecollide(gravity, emys, True):
+                exps.add(Explosion(emy, 100))
 
         conbomb = pg.sprite.spritecollide(bird, bombs, True) #conbombに接触した爆弾の情報を格納
         if len(conbomb) != 0: #conbombが長さ0以外なら
@@ -432,6 +469,8 @@ def main():
         exps.draw(screen)
         emps.update()
         emps.draw(screen)  # EMPを描画
+        gravity_fields.update()  # 重力場を更新
+        gravity_fields.draw(screen)  # 重力場を描画
         score.update(screen)
         pg.display.update()
         tmr += 1
