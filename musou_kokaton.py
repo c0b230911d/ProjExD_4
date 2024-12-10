@@ -73,6 +73,7 @@ class Bird(pg.sprite.Sprite):
         self.rect.center = xy
         self.speed = 10
 
+
     def change_img(self, num: int, screen: pg.Surface):
         """
         こうかとん画像を切り替え，画面に転送する
@@ -241,6 +242,13 @@ class Score:
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         screen.blit(self.image, self.rect)
 
+class SpeedBoost:
+    def apply(bird, key_lst):
+        if key_lst[pg.K_LSHIFT]:
+            bird.speed = 20
+        else:
+            bird.speed = 10
+
 
 def main():
     pg.display.set_caption("真！こうかとん無双")
@@ -288,6 +296,8 @@ def main():
             pg.display.update()
             time.sleep(2)
             return
+
+        SpeedBoost.apply(bird, key_lst)
 
         bird.update(key_lst, screen)
         beams.update()
