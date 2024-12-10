@@ -126,6 +126,10 @@ class Bomb(pg.sprite.Sprite):
         self.rect.centerx = emy.rect.centerx
         self.rect.centery = emy.rect.centery+emy.rect.height//2
         self.speed = 6
+        self.state = "active"
+
+
+        
 
     def update(self):
         """
@@ -243,7 +247,7 @@ class Score:
 
 
 class EMP(pg.sprite.Sprite):
-    def __init__(self, emys, bombs):
+    def __init__(self, emys : pg.sprite.Group, bombs : pg.sprite.Group, screen : pg.Surface):
         """
         電磁パルスのクラス
         """
@@ -293,7 +297,7 @@ def main():
                 if event.key == pg.K_e:  # 'E'キーでEMP発動
                     if len(emps) == 0:  # EMPが未発動の場合のみ発動
                         if score.value >= 20:  # スコアが20以上の場合のみ発動可能
-                            emps.add(EMP(emys, bombs))
+                            emps.add(EMP(emys, bombs,screen))
                             score.value -= 20  # スコアを20減少
 
         screen.blit(bg_img, [0, 0])
@@ -316,6 +320,9 @@ def main():
             score.value += 1  # 1点アップ
 
         for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
+            if bomb.state == "inactive":
+                continue
+            
             bird.change_img(8, screen)  # こうかとん悲しみエフェクト
             score.update(screen)
             pg.display.update()
