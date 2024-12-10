@@ -279,6 +279,36 @@ class Score:
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         screen.blit(self.image, self.rect)
 
+class Shield(pg.sprite.Sprite):
+    """
+    防御壁に関するクラス
+    """
+    def __init__(self, bird: Bird, life: int):
+        """
+        防御壁を生成する
+        引数1 bird：防御壁を設置するこうかとん
+        引数2 life：防御壁の寿命
+        """
+        super().__init__()
+        self.life = life
+
+        self.image = pg.Surface((20, bird.rect.height * 2), pg.SRCALPHA)
+    
+        pg.draw.rect(self.image, (0, 0, 255), (0, 0, 20, bird.rect.height * 2))
+        vx, vy = bird.dire
+        angle = math.degrees(math.atan2(-vy, vx))
+        self.image = pg.transform.rotozoom(self.image, angle, 1.0)
+        self.rect = self.image.get_rect()
+        offset_x = vx * bird.rect.width
+        offset_y = vy * bird.rect.height
+        self.rect.centerx = bird.rect.centerx + offset_x
+        self.rect.centery = bird.rect.centery + offset_y
+
+    def update(self):
+
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
 class SpeedBoost:
     def apply(bird, key_lst):
         if key_lst[pg.K_LSHIFT]:
@@ -368,6 +398,7 @@ def main():
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    shields = pg.sprite.Group()  
     emps = pg.sprite.Group()  # EMPのグループ
     gravity_fields = pg.sprite.Group()  # 重力場のグループを追加
 
@@ -399,14 +430,21 @@ def main():
                 bird.state = "hyper" #無敵状態に
                 bird.hyper_life = 500 #ライフを500フレームに
                 score.value -= 100 #スコアを100減らす
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    beams.add(Beam(bird))  # ビーム発射
+                if event.key == pg.K_s:
+                    if score.value >= 50 and not shields:
+                        shields.add(Shield(bird, 400))  
+                        score.value -= 50  
+
             if event.type == pg.KEYDOWN and event.key == pg.K_RSHIFT and score.value >= 10:
                 # スコアが200以上の場合、RETURNキーで重力場を生成
                 gravity_fields.add(Gravity(40))  # 持続時間40フレームの重力場を生成
                 score.value -= 10  # スコアを10点消費
         screen.blit(bg_img, [0, 0])
 
+        if tmr % 200 == 0:  # 200フレームに1回、敵機を出現させる
         if tmr % 200 == 0:  # 200フレームに1回，敵機を出現sさせる
             emys.add(Enemy())
 
@@ -414,15 +452,14 @@ def main():
             if emy.state == "stop" and tmr % emy.interval == 0:
                 # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
                 bombs.add(Bomb(emy, bird))
-            
 
-        for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():  # ビームと衝突した敵機リスト
+        for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():
             exps.add(Explosion(emy, 100))  # 爆発エフェクト
             score.value += 50  # 10点アップ
             score.value += 100  # 10点アップ
             bird.change_img(6, screen)  # こうかとん喜びエフェクト
 
-        for bomb in pg.sprite.groupcollide(bombs, beams, True, True).keys():  # ビームと衝突した爆弾リスト
+        for bomb in pg.sprite.groupcollide(bombs, beams, True, True).keys():
             exps.add(Explosion(bomb, 50))  # 爆発エフェクト
             score.value += 1  # 1点アップ
           # 重力場と爆弾・敵機との衝突判定
@@ -444,7 +481,7 @@ def main():
                 time.sleep(2)
                 return
             
-        for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
+        for bomb in pg.sprite.spritecollide(bird, bombs, True):
             if bomb.state == "inactive":
                 continue
 
@@ -456,6 +493,10 @@ def main():
             time.sleep(2)
             return
 
+        for shield in pg.sprite.groupcollide(shields, bombs, False, True).keys():
+            exps.add(Explosion(shield, 30))  # 衝突時に爆発エフェクト
+
+        # 各オブジェクトの更新と描画
         SpeedBoost.apply(bird, key_lst)
 
         bird.update(key_lst, screen)
@@ -467,6 +508,8 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        shields.update()  
+        shields.draw(screen)  
         emps.update()
         emps.draw(screen)  # EMPを描画
         gravity_fields.update()  # 重力場を更新
