@@ -242,6 +242,31 @@ class Score:
         screen.blit(self.image, self.rect)
 
 
+class EMP(pg.sprite.Sprite):
+    def __init__(self, emys, bombs):
+        """
+        電磁パルスのクラス
+        """
+        super().__init__()
+        self.image = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        self.rect = self.image.get_rect()
+        pg.draw.rect(self.image, (255, 255, 0, 128), self.rect)
+        self.time = 10
+        for emy in emys:
+            emy.interval = float("inf")
+            emy.image = pg.transform.laplacian(emy.image)
+        for bomb in bombs:
+            bomb.speed /= 2
+            bomb.state = "inactive"
+
+    def update(self):
+        """
+        時間を減算し、タイムアウト後に削除する
+        """
+        self.time -= 0.5
+        if self.time <= 0:
+            self.kill()
+
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -253,6 +278,7 @@ def main():
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    emps = pg.sprite.Group()  # EMPのグループ
 
     tmr = 0
     clock = pg.time.Clock()
@@ -261,15 +287,22 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    beams.add(Beam(bird))
+                if event.key == pg.K_e:  # 'E'キーでEMP発動
+                    if len(emps) == 0:  # EMPが未発動の場合のみ発動
+                        if score.value >= 20:  # スコアが20以上の場合のみ発動可能
+                            emps.add(EMP(emys, bombs))
+                            score.value -= 20  # スコアを20減少
+
         screen.blit(bg_img, [0, 0])
 
-        if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
+        if tmr % 200 == 0:  # 200フレームに1回，敵機を出現させる
             emys.add(Enemy())
 
         for emy in emys:
-            if emy.state == "stop" and tmr%emy.interval == 0:
+            if emy.state == "stop" and tmr % emy.interval == 0:
                 # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
                 bombs.add(Bomb(emy, bird))
 
@@ -298,6 +331,8 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        emps.update()
+        emps.draw(screen)  # EMPを描画
         score.update(screen)
         pg.display.update()
         tmr += 1
